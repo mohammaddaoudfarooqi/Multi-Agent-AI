@@ -20,13 +20,14 @@
 The Multi-Agent AI System is a sophisticated application designed to handle complex queries through a collaborative approach using multiple specialized AI agents. It leverages Amazon's Bedrock service to access various Claude AI models, providing a versatile and powerful solution for a wide range of tasks, including problem-solving, analysis, coding, and visual interpretation.
 
 Key features:
-- Multiple specialized AI agents for different types of tasks
-- Dynamic query routing and agent collaboration
-- Support for text and image inputs
-- User-friendly chat interface using Gradio
-- Integration with Amazon Bedrock for accessing advanced AI models
+- Multiple specialized agents for different types of tasks
+- Dynamic query routing based on input categorization
+- Collaborative problem-solving among agents
+- Integration with external tools like MongoDB for enhanced responses
+- A user-friendly chat interface built with Gradio
+- Support for both text and image inputs
 
-This system is ideal for organizations and individuals seeking a comprehensive AI assistant capable of handling diverse and complex queries with high accuracy and depth.
+This Multi-Agent AI System is ideal for organizations looking to implement a versatile AI assistant capable of handling diverse user queries, from general inquiries to specialized tasks like coding, data analysis, and visual interpretation.
 
 ## 2. System Architecture
 
@@ -55,44 +56,98 @@ graph TD
 6. Individual Agents: Specialized AI agents for different tasks.
 7. Amazon Bedrock: Cloud-based AI service providing access to Claude models.
 
+
+
 ## 3. Components
 
 ### 3.1 AgentBase
 
-- Purpose: Serves as the foundation for all specialized agents.
-- Core Functionality: Handles communication with Amazon Bedrock.
-- Technologies: Python, boto3
+- **Purpose**: Serves as the foundation for all specialized agents.
+- **Core Functionality**: Handles communication with Amazon Bedrock.
+- **Technologies**: Python, boto3
 
-### 3.2 Specialized Agents
+### 3.2 Tools
 
-- Types: ReflectionAgent, SolutionAgent, InquiryAgent, GuidanceAgent, VisualAgent, CodingAgent, AnalyticsAgent, ReasoningAgent
-- Purpose: Each agent specializes in a specific type of task or domain.
-- Core Functionality: Process queries and generate responses within their expertise.
-- Technologies: Python, Claude AI models
+The `Tools` class provides utility functions for the agents, particularly for interacting with external data sources.
 
-### 3.3 MultiAgentSystem
+- **Key Features**:
+  - MongoDB Atlas integration for hybrid searches (combining full-text and vector-based)
+  - Utilizes BedrockEmbeddings for generating embeddings
 
-- Purpose: Manages and coordinates multiple agents.
-- Core Functionality: Routes queries to appropriate agents and facilitates collaboration.
-- Technologies: Python
+**Usage Example**:
+```python
+tools = Tools(
+    mongodb_uri="your_mongodb_uri",
+    mongodb_db="your_database_name",
+    mongodb_collection="your_collection_name"
+)
+results = tools.search_mongodb("user query")
+```
 
-### 3.4 QueryRouter
+### 3.3 Specialized Agents
 
-- Purpose: Categorizes incoming queries and determines the appropriate agent(s) to handle them.
-- Core Functionality: Analyzes queries, decides on single or multi-agent approach, and manages collaborative iterations.
-- Technologies: Python, Claude AI for query categorization
+The Multi-Agent System comprises several specialized agents, each inheriting from the `AgentBase` class:
 
-### 3.5 Gradio Interface
+- **ReflectionAgent**: Provides self-reflective analysis
+- **SolutionAgent**: Solves problems step-by-step
+- **InquiryAgent**: Answers questions using MongoDB search results
+- **GuidanceAgent**: Offers mentorship and professional advice
+- **VisualAgent**: Analyzes and interprets images
+- **CodingAgent**: Reviews and generates code
+- **AnalyticsAgent**: Performs data analysis and provides insights
+- **ReasoningAgent**: Applies logical reasoning to scenarios
 
-- Purpose: Provides a user-friendly web interface for interacting with the system.
-- Core Functionality: Handles user inputs (text and images) and displays AI responses.
-- Technologies: Gradio, Python
+Each agent is initialized with a specific Claude model and can process queries using the `respond` method.
 
-### 3.6 FastAPI Server
+**Example Agent Initialization**:
+```python
+reflection_agent = ReflectionAgent("Reflection Agent", claude_models["Claude 3.5 Sonnet (US, v2)"])
+```
 
-- Purpose: Serves the web application and handles HTTP requests.
-- Core Functionality: Integrates Gradio with FastAPI for web deployment.
-- Technologies: FastAPI, Uvicorn
+### 3.4 MultiAgentSystem
+
+- **Purpose**: Manages and coordinates multiple agents.
+- **Core Functionality**: Routes queries to appropriate agents and facilitates collaboration.
+- **Technologies**: Python
+
+### 3.5 QueryRouter
+
+The `QueryRouter` class is responsible for categorizing incoming queries and routing them to the appropriate agent(s).
+
+- **Key Functionalities**:
+  - Query categorization using a dedicated ReflectionAgent
+  - Parsing of categorization results
+  - Handling of collaborative responses among multiple agents
+
+**Usage Example**:
+```python
+query_router = QueryRouter(multi_agent_system)
+async for response in query_router.route_query("user query"):
+    print(response)
+```
+
+### 3.6 Gradio Interface
+
+The user interface is built using Gradio, providing a chat-like experience for interacting with the Multi-Agent System.
+
+- **Key Features**:
+  - Support for text and image inputs
+  - Real-time streaming of agent responses
+  - Customizable CSS for improved aesthetics
+
+The interface is defined in the `interface.py` file and can be easily integrated into other applications.
+
+### 3.7 FastAPI Server
+
+- **Purpose**: Serves the web application and handles HTTP requests.
+- **Core Functionality**: Integrates Gradio with FastAPI for web deployment.
+- **Technologies**: FastAPI, Uvicorn
+
+### 3.8 Main Application
+
+The main application (`main.py`) ties all components together and serves the Gradio interface using FastAPI.
+
+
 
 ## 4. Installation & Deployment
 
@@ -151,7 +206,7 @@ claude_models = {
 
 ## 6. Usage
 
-1. Access the web interface at `http://localhost:7860`.
+1. Access the web interface at `http://0.0.0.0:7860`.
 2. Type your query in the chat input or upload an image.
 3. The system will process your query, route it to the appropriate agent(s), and display the response.
 
