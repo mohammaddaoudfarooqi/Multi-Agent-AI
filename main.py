@@ -2,6 +2,9 @@ from fastapi import FastAPI
 import uvicorn
 import gradio as gr
 from interface import demo
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Initialize FastAPI app
 app = FastAPI()

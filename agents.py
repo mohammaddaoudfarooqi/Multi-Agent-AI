@@ -1,12 +1,18 @@
-
-import boto3
-import json
 import asyncio
-import base64
-from tools import Tools
+import logging
 import os
+from PIL import Image
+import io
+import boto3
+import filetype
+from botocore.exceptions import ClientError
 
-# Dictionary mapping model names to their IDs
+from tools import Tools
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+# Dictionary mapping model names to their IDs for reference
 claude_models = {
     "Claude 3.5 Sonnet (US, v2)": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
     "Claude 3.5 Sonnet": "anthropic.claude-3-5-sonnet-20240620-v1:0",
@@ -15,6 +21,19 @@ claude_models = {
     "Claude 3 Sonnet": "anthropic.claude-3-sonnet-20240229-v1:0",
     "Claude 3 Opus (US)": "us.anthropic.claude-3-opus-20240229-v1:0",
 }
+
+models = {
+    "Llama 3.3 70B Instruct": "us.meta.llama3-3-70b-instruct-v1:0",
+    "Llama 3.2 11B Vision Instruct": "us.meta.llama3-2-11b-instruct-v1:0",
+    "Llama 3.2 1B Instruct": "us.meta.llama3-2-1b-instruct-v1:0",
+    "Llama 3.2 3B Instruct": "us.meta.llama3-2-3b-instruct-v1:0",
+    "Llama 3.2 90B Vision Instruct": "us.meta.llama3-2-90b-instruct-v1:0",
+    "Llama 3.1 70B Instruct": "us.meta.llama3-1-70b-instruct-v1:0",
+    "Llama 3.1 8B Instruct": "us.meta.llama3-1-8b-instruct-v1:0",
+    "Llama 3 70B Instruct": "meta.llama3-70b-instruct-v1:0",
+    "Llama 3 8B Instruct": "meta.llama3-8b-instruct-v1:0",
+}
+
 
 class AgentBase:
     """
@@ -32,52 +51,59 @@ class AgentBase:
         """
         Send a prompt to the Bedrock model and return the response.
         """
-        payload = ""
+        payload = await self._prepare_payload(prompt, image_path)
+
+        try:
+            response = await asyncio.to_thread(
+                self.bedrock_client.converse,
+                modelId=self.model_id,
+                messages=payload["messages"],
+            )
+            model_response = response["output"]["message"]
+            response_text = " ".join(i["text"] for i in model_response["content"])
+            return response_text
+        except ClientError as err:
+            logger.error(
+                "A client error occurred: %s", err.response["Error"]["Message"]
+            )
+            return None
+
+    async def _prepare_payload(self, prompt, image_path=None):
+        """
+        Prepare the payload for AWS Converse.
+        """
         if image_path:
-            # Encode image to base64 if image_path is provided
             with open(image_path, "rb") as image_file:
-                encoded_image = base64.b64encode(image_file.read()).decode()
-                payload = {
-                    "messages": [
-                        {
-                            "role": "user",
-                            "content": [
-                                {
-                                    "type": "image",
-                                    "source": {
-                                        "type": "base64",
-                                        "media_type": "image/jpeg",
-                                        "data": encoded_image,
-                                    },
-                                },
-                                {"type": "text", "text": prompt},
-                            ],
-                        }
-                    ],
-                    "max_tokens": 8192,
-                    "anthropic_version": "bedrock-2023-05-31",
-                }
-        else:
-            # Create payload for text-only prompt
-            payload = {
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 8192,
-                "temperature": 0.7,
-                "messages": [
+                image_bytes = image_file.read()
+                kind = filetype.guess(image_path)
+                image_format = kind.extension if kind else "jpeg"
+
+                # Convert jpg/jpeg to png and resize
+                image = Image.open(io.BytesIO(image_bytes))
+                if image_format in ["jpg", "jpeg"]:
+                    image_format = "png"
+                    image = image.convert("RGB")
+                image.thumbnail((512, 512))
+                img_byte_arr = io.BytesIO()
+                image.save(img_byte_arr, format="PNG")
+                image_bytes = img_byte_arr.getvalue()
+
+            message = {
+                "role": "user",
+                "content": [
+                    {"text": prompt},
                     {
-                        "role": "user",
-                        "content": [{"type": "text", "text": prompt}],
-                    }
+                        "image": {
+                            "format": image_format,
+                            "source": {"bytes": image_bytes},
+                        }
+                    },
                 ],
             }
-        response = await asyncio.to_thread(
-            self.bedrock_client.invoke_model,
-            modelId=self.model_id,
-            body=json.dumps(payload),
-            contentType="application/json",
-        )
-        model_response = json.loads(response["body"].read())
-        return model_response["content"][0]["text"]
+        else:
+            message = {"role": "user", "content": [{"text": prompt}]}
+
+        return {"messages": [message]}
 
     async def respond(self, input_data, **kwargs):
         """
@@ -177,13 +203,6 @@ class ReasoningAgent(AgentBase):
         return await self.send_to_bedrock(prompt)
 
 
-# def WebSearch(self, input_data, **kwargs):
-#     api_key = kwargs.get("api_key")
-#     search_engine_id = kwargs.get("search_engine_id")
-#     results = self.tools.web_search(input_data, api_key, search_engine_id)
-#     return results
-
-
 class MultiAgentSystem:
     """
     System to manage multiple agents and route queries to the appropriate agent.
@@ -196,28 +215,40 @@ class MultiAgentSystem:
             mongodb_db="travel_agency",
             mongodb_collection="trip_recommendation",
         )
+
         self.agents = {
             "ReflectionAgent": ReflectionAgent(
-                "Reflection Agent", claude_models["Claude 3.5 Sonnet (US, v2)"]
+                "Reflection Agent",
+                os.getenv("REFLECTION_AGENT", "us.meta.llama3-3-70b-instruct-v1:0"),
             ),
             "SolutionAgent": SolutionAgent(
-                "Solution Agent", claude_models["Claude 3.5 Haiku (US)"]
+                "Solution Agent",
+                os.getenv("SOLUTION_AGENT", "us.meta.llama3-2-11b-instruct-v1:0"),
             ),
             "InquiryAgent": InquiryAgent(
-                "Inquiry Agent", claude_models["Claude 3 Opus (US)"], self.tools
+                "Inquiry Agent",
+                os.getenv("INQUIRY_AGENT", "us.meta.llama3-1-8b-instruct-v1:0"),
+                self.tools,
             ),
             "GuidanceAgent": GuidanceAgent(
-                "Guidance Agent", claude_models["Claude 3 Sonnet"]
+                "Guidance Agent",
+                os.getenv("GUIDANCE_AGENT", "us.meta.llama3-3-70b-instruct-v1:0"),
             ),
             "VisualAgent": VisualAgent(
-                "Visual Agent", claude_models["Claude 3.5 Sonnet (US, v2)"]
+                "Visual Agent",
+                os.getenv("VISUAL_AGENT", "us.meta.llama3-2-90b-instruct-v1:0"),
             ),
-            "CodingAgent": CodingAgent("Coding Agent", claude_models["Claude 3 Haiku"]),
+            "CodingAgent": CodingAgent(
+                "Coding Agent",
+                os.getenv("CODING_AGENT", "us.meta.llama3-1-8b-instruct-v1:0"),
+            ),
             "AnalyticsAgent": AnalyticsAgent(
-                "Analytics Agent", claude_models["Claude 3 Sonnet"]
+                "Analytics Agent",
+                os.getenv("ANALYTICS_AGENT", "us.meta.llama3-3-70b-instruct-v1:0"),
             ),
             "ReasoningAgent": ReasoningAgent(
-                "Reasoning Agent", claude_models["Claude 3 Opus (US)"]
+                "Reasoning Agent",
+                os.getenv("REASONING_AGENT", "us.meta.llama3-2-3b-instruct-v1:0"),
             ),
         }
 

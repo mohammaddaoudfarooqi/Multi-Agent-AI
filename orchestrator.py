@@ -1,5 +1,5 @@
-from agents import ReflectionAgent, claude_models
-
+from agents import ReflectionAgent
+import os
 
 class QueryRouter:
     """
@@ -9,7 +9,7 @@ class QueryRouter:
     def __init__(self, agent_system):
         self.agent_system = agent_system
         self.categorizer = ReflectionAgent(
-            "Query Categorizer", claude_models["Claude 3.5 Haiku (US)"]
+            "Query Categorizer", os.getenv("REFLECTION_AGENT", "us.meta.llama3-3-70b-instruct-v1:0")
         )
 
     async def categorize_query(self, query):
@@ -38,6 +38,7 @@ class QueryRouter:
             f"Collaboration: <Yes/No>\n"
             f"Reason: <Short explanation>\n"
             f"InitialCollaborators: [<AgentType1>, <AgentType2>, ...]. Include all required participating agents if Collaboration is 'Yes'."
+            "If an image is given, use VisualAgent first for image analysis."
         )
         categorization = await self.categorizer.send_to_bedrock(prompt)
         return categorization
@@ -129,6 +130,9 @@ class QueryRouter:
             # If not satisfied, prepare for the next iteration
             current_response = combined_response
             iteration += 1
+            if iteration > 3:
+                yield "\n**--- Maximum Iteration Limit Reached ---**"
+                break
 
     async def route_query(self, query, image_path=None):
         """

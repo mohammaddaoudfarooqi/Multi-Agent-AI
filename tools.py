@@ -7,9 +7,8 @@ import boto3
 from langchain_aws import BedrockEmbeddings
 from langchain_mongodb import MongoDBAtlasVectorSearch
 from langchain_mongodb.retrievers import MongoDBAtlasHybridSearchRetriever
-from dotenv import load_dotenv
 
-load_dotenv()
+
 # Setup AWS and Bedrock client
 def get_bedrock_client():
     return boto3.client("bedrock-runtime", region_name=os.getenv("AWS_REGION"))
@@ -77,5 +76,3 @@ class Tools:
 
         documents = retriever.invoke(query)
         return [doc.page_content for doc in documents]
-
-    

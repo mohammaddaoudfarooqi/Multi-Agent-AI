@@ -17,7 +17,7 @@
 
 ## 1. Overview
 
-The Multi-Agent AI System is a sophisticated application designed to handle complex queries through a collaborative approach using multiple specialized AI agents. It leverages Amazon's Bedrock service to access various Claude AI models, providing a versatile and powerful solution for a wide range of tasks, including problem-solving, analysis, coding, and visual interpretation.
+The Multi-Agent AI System is a sophisticated application designed to handle complex queries through a collaborative approach using multiple specialized AI agents. It leverages Amazon's Bedrock service to access various AI models, providing a versatile and powerful solution for a wide range of tasks, including problem-solving, analysis, coding, and visual interpretation.
 
 Key features:
 - Multiple specialized agents for different types of tasks
@@ -54,9 +54,7 @@ graph TD
 4. Query Router: Categorizes and directs queries to appropriate agents.
 5. Multi-Agent System: Manages and coordinates multiple specialized AI agents.
 6. Individual Agents: Specialized AI agents for different tasks.
-7. Amazon Bedrock: Cloud-based AI service providing access to Claude models.
-
-
+7. Amazon Bedrock: Cloud-based AI service providing access to various models.
 
 ## 3. Components
 
@@ -97,11 +95,11 @@ The Multi-Agent System comprises several specialized agents, each inheriting fro
 - **AnalyticsAgent**: Performs data analysis and provides insights
 - **ReasoningAgent**: Applies logical reasoning to scenarios
 
-Each agent is initialized with a specific Claude model and can process queries using the `respond` method.
+Each agent is initialized with a specific AI model and can process queries using the `respond` method.
 
 **Example Agent Initialization**:
 ```python
-reflection_agent = ReflectionAgent("Reflection Agent", claude_models["Claude 3.5 Sonnet (US, v2)"])
+reflection_agent = ReflectionAgent("Reflection Agent", os.getenv("REFLECTION_AGENT"))
 ```
 
 ### 3.4 MultiAgentSystem
@@ -147,8 +145,6 @@ The interface is defined in the `interface.py` file and can be easily integrated
 
 The main application (`main.py`) ties all components together and serves the Gradio interface using FastAPI.
 
-
-
 ## 4. Installation & Deployment
 
 Prerequisites:
@@ -187,22 +183,21 @@ The server will start on `http://0.0.0.0:7860`.
 
 ## 5. Configuration
 
-Key configuration options are managed through environment variables and the `claude_models` dictionary in `agents.py`.
+Key configuration options are managed through environment variables in the `.env` file.
 
 Environment Variables:
 - `AWS_ACCESS_KEY_ID`: Your AWS access key
 - `AWS_SECRET_ACCESS_KEY`: Your AWS secret access key
 - `AWS_REGION`: AWS region for Bedrock service
 - `MONGODB_URI`: MongoDB connection string
-
-Claude Models Configuration:
-```python
-claude_models = {
-    "Claude 3.5 Sonnet (US, v2)": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
-    "Claude 3.5 Sonnet": "anthropic.claude-3-5-sonnet-20240620-v1:0",
-    # ... other models ...
-}
-```
+- `REFLECTION_AGENT`: Model ID for Reflection Agent
+- `SOLUTION_AGENT`: Model ID for Solution Agent
+- `INQUIRY_AGENT`: Model ID for Inquiry Agent
+- `GUIDANCE_AGENT`: Model ID for Guidance Agent
+- `VISUAL_AGENT`: Model ID for Visual Agent
+- `CODING_AGENT`: Model ID for Coding Agent
+- `ANALYTICS_AGENT`: Model ID for Analytics Agent
+- `REASONING_AGENT`: Model ID for Reasoning Agent
 
 ## 6. Usage
 
@@ -225,12 +220,14 @@ The system primarily uses a chat interface, but the underlying FastAPI server ca
 - Use HTTPS for production deployments.
 - Implement user authentication for the chat interface in production.
 - Secure MongoDB connection string and limit database access permissions.
+- Regularly rotate AWS access keys and review IAM permissions.
 
 ## 9. Monitoring & Logging
 
 - AWS CloudWatch can be integrated for monitoring Bedrock usage.
 - Implement application-level logging for query processing and agent interactions.
 - Monitor MongoDB performance and usage.
+- Set up alerts for unusual activity or errors in the system.
 
 ## 10. Troubleshooting
 
@@ -239,6 +236,7 @@ Common issues:
 - Model unavailability: Check Bedrock service status and quotas.
 - High latency: Monitor network connection and Bedrock response times.
 - MongoDB connection issues: Verify connection string and network access.
+- Image processing errors: Ensure proper file formats and sizes are supported.
 
 ## 11. Development Guide
 
@@ -246,13 +244,16 @@ Common issues:
 - To add a new agent type, create a new class inheriting from `AgentBase` and implement the `respond` method.
 - Use Python type hints and docstrings for better code readability.
 - Extend the `Tools` class in `tools.py` to add new functionalities like web search or database interactions.
+- Follow PEP 8 style guidelines for Python code.
+- Write unit tests for new features and ensure existing tests pass before committing changes.
 
 ## 12. Maintenance & Operations
 
 - Regularly update dependencies, especially Gradio, boto3, and MongoDB drivers.
 - Monitor AWS Bedrock usage and costs.
-- Keep Claude model IDs updated in the `claude_models` dictionary.
+- Keep AI model IDs updated in the environment variables.
 - Perform regular backups of MongoDB data.
 - Implement a CI/CD pipeline for automated testing and deployment.
+- Schedule periodic reviews of system performance and user feedback to identify areas for improvement.
 
 This documentation provides a comprehensive overview of the Multi-Agent AI System. For further assistance or contributions, please refer to the project's GitHub repository or contact the development team.
